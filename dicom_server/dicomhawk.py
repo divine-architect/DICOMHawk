@@ -17,6 +17,19 @@ from datetime import datetime
 import json
 import time
 import random
+from requests import get
+from dotenv import load_dotenv
+
+load_dotenv()
+
+CANARY_URL = os.getenv('canaryurl')
+
+def trigger_canary(event):
+    # canary func
+    try:
+        get(CANARY_URL)
+    except Exception as e:
+        print(f"Canary trigger failed: {e}")
 
 # Set up logging
 log_directory = '/app/logs'
@@ -161,6 +174,7 @@ def handle_assoc(event):
         "msg": "Client",
         "timestamp": datetime.now().isoformat()
     })
+    trigger_canary(event)
 
 def handle_release(event):
     assoc_id = assoc_sessions.pop(event.assoc, str(int(time.time() * 1000000)))
@@ -176,6 +190,7 @@ def handle_release(event):
         "msg": "Connection",
         "timestamp": datetime.now().isoformat()
     })
+    trigger_canary(event)
 
 def handle_find(event):
     assoc_id = assoc_sessions.get(event.assoc, str(int(time.time() * 1000000)))
@@ -223,6 +238,7 @@ def handle_find(event):
         "msg": "C-FIND Search result",
         "timestamp": datetime.now().isoformat()
     })
+    trigger_canary(event)
 
 
 
@@ -255,6 +271,7 @@ def handle_echo(event):
         "msg": "Received",
         "timestamp": datetime.now().isoformat()
     })
+    trigger_canary(event)
     return 0x0000
 
 def handle_move(event):
@@ -278,6 +295,7 @@ def handle_move(event):
     ds.StudyInstanceUID = generate_uid()
     ds.SeriesInstanceUID = generate_uid()
     ds.SOPClassUID = CTImageStorage
+    trigger_canary(event)
     yield 1, ds
 
 def handle_get(event):
@@ -295,7 +313,7 @@ def handle_get(event):
         "timestamp": datetime.now().isoformat()
     })
     remaining_subops = len(dicom_datasets)
-    
+    trigger_canary(event)
     # Yield the number of remaining sub-operations as the first item
     yield remaining_subops
     
