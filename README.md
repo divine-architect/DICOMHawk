@@ -92,18 +92,9 @@ DICOMHawk provides detailed logging to help you monitor and analyze interactions
 - **Server Logs**: Access logs to see detailed information about DICOM associations and DIMSE messages.
 - **Simplified Logs**: View simplified logs for a quick overview of events.
 
-### Canary webhooks
-This feature allows you to get instant notifs whenever a request is made to the honey pot DICOM server via Canary webhooks.
+### Email alerts/custom canary token implementation
+Implementing http based canary tokens for getting attacker info is quite impossible directly via the server itself, currently it uses smtp to send custom alerts to any email via an app password stored in a `.env` file.
 
-Steps to setup a webhook:
-- Get a webhook url from [https://canarytokens.org/nest/](https://canarytokens.org/nest/)
-- Make sure to get the `Web Bug` webhook.
-- Place the url in a `.env` file in the `dicom_server` directory.
-And that's it! You should get a notif whenever anyone queries anything to the DICOM server.
-
-Todo for canary tokens:
-- Specify what kind of request was made
-- Lure the attacker via a nested honeypot --> and trigger another webhook for more info.
 
 You can view these logs through the web interface or by accessing the log files directly within the log server container.
 

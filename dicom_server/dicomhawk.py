@@ -21,15 +21,39 @@ from requests import get
 from dotenv import load_dotenv
 
 load_dotenv()
+import os
+import smtplib
+from email.message import EmailMessage
 
-CANARY_URL = os.getenv('canaryurl')
 
-def trigger_canary(event):
-    # canary func
+
+GMAIL_USER = os.getenv('gmail_id')
+GMAIL_PASSWORD = os.getenv('google_app_pw')
+ALERT_EMAIL = os.getenv('canary_target')  # email to receive alerts
+
+
+
+def send_alert_email(attacker_ip, details):
+    msg = EmailMessage()
+    msg['Subject'] = 'DICOMHawk Alert: Intrusion Detected'
+    msg['From'] = GMAIL_USER
+    msg['To'] = ALERT_EMAIL
+    msg.set_content(f"New DICOM request from {attacker_ip}\nDetails: {details}")
     try:
-        get(CANARY_URL)
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(GMAIL_USER, GMAIL_PASSWORD)
+            smtp.send_message(msg)
+        detailed_logger.info("Alert email sent successfully")
     except Exception as e:
-        print(f"Canary trigger failed: {e}")
+        detailed_logger.error(f"Failed to send alert email: {e}")
+
+def trigger_custom_canary(event,typeofreq:str): #typeofrequest to be more verbose about the attack
+    try:
+        attacker_ip = event.assoc.requestor.address
+        details = f"Port: {event.assoc.requestor.port} \nType: {typeofreq}\n"
+        send_alert_email(attacker_ip, details)
+    except Exception as e:
+        detailed_logger.error(f"Error triggering custom canary: {e}")
 
 # Set up logging
 log_directory = '/app/logs'
@@ -174,7 +198,7 @@ def handle_assoc(event):
         "msg": "Client",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_assoc')
 
 def handle_release(event):
     assoc_id = assoc_sessions.pop(event.assoc, str(int(time.time() * 1000000)))
@@ -190,7 +214,7 @@ def handle_release(event):
         "msg": "Connection",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_release')
 
 def handle_find(event):
     assoc_id = assoc_sessions.get(event.assoc, str(int(time.time() * 1000000)))
@@ -238,7 +262,7 @@ def handle_find(event):
         "msg": "C-FIND Search result",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_find')
 
 
 
@@ -271,7 +295,7 @@ def handle_echo(event):
         "msg": "Received",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_echo')
     return 0x0000
 
 def handle_move(event):
@@ -295,7 +319,7 @@ def handle_move(event):
     ds.StudyInstanceUID = generate_uid()
     ds.SeriesInstanceUID = generate_uid()
     ds.SOPClassUID = CTImageStorage
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_move')
     yield 1, ds
 
 def handle_get(event):
@@ -313,7 +337,7 @@ def handle_get(event):
         "timestamp": datetime.now().isoformat()
     })
     remaining_subops = len(dicom_datasets)
-    trigger_canary(event)
+    trigger_custom_canary(event,'handle_get')
     # Yield the number of remaining sub-operations as the first item
     yield remaining_subops
     
@@ -353,8 +377,5 @@ def start_dicom_server():
         print(f"Port {dicom_port} is in use. Please free up the port and try again.")
         return
     ae.start_server(('172.29.0.3', dicom_port), evt_handlers=handlers)
-
-
-
 
 start_dicom_server()
