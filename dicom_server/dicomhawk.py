@@ -22,38 +22,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import os
-import smtplib
-from email.message import EmailMessage
 
 
-
-GMAIL_USER = os.getenv('gmail_id')
-GMAIL_PASSWORD = os.getenv('google_app_pw')
-ALERT_EMAIL = os.getenv('canary_target')  # email to receive alerts
-
-
-
-def send_alert_email(attacker_ip, details):
-    msg = EmailMessage()
-    msg['Subject'] = 'DICOMHawk Alert: Intrusion Detected'
-    msg['From'] = GMAIL_USER
-    msg['To'] = ALERT_EMAIL
-    msg.set_content(f"New DICOM request from {attacker_ip}\nDetails: {details}")
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(GMAIL_USER, GMAIL_PASSWORD)
-            smtp.send_message(msg)
-        detailed_logger.info("Alert email sent successfully")
-    except Exception as e:
-        detailed_logger.error(f"Failed to send alert email: {e}")
-
-def trigger_custom_canary(event,typeofreq:str): #typeofrequest to be more verbose about the attack
-    try:
-        attacker_ip = event.assoc.requestor.address
-        details = f"Port: {event.assoc.requestor.port} \nType: {typeofreq}\n"
-        send_alert_email(attacker_ip, details)
-    except Exception as e:
-        detailed_logger.error(f"Error triggering custom canary: {e}")
 
 # Set up logging
 log_directory = '/app/logs'
@@ -98,8 +68,8 @@ def log_simplified_message(message):
     except (TypeError, ValueError) as e:
         exception_logger.error(f"Failed to log simplified message: {message} - {e}")
 
-# Function to generate fake DICOM files with Danish-like names
-def create_fake_dicom_files(directory, num_files=10):
+
+def create_fake_dicom_files(directory, num_files=10, canary_token_url=os.getenv('canary_url')):
     os.makedirs(directory, exist_ok=True)
     
     first_names = ["Frederik", "Sofie", "Lukas", "Emma", "William", "Ida", "Noah", "Anna", "Oliver", "Laura"]
@@ -131,6 +101,14 @@ def create_fake_dicom_files(directory, num_files=10):
         ds.SamplesPerPixel = 1
         ds.PhotometricInterpretation = "MONOCHROME2"
         ds.PixelData = b'\x00' * (ds.Rows * ds.Columns * 2)
+        
+        #canary test
+        
+        ds.ImageComments = f"This DICOM file is for testing. Please visit: {canary_token_url}"
+        ds.StudyDescription = f"Dummy Study - Visit {canary_token_url}"
+        ds.SeriesDescription = f"Dummy Series - Report issues to {canary_token_url}"
+        ds.PatientComments = f"Contact us at {canary_token_url} if you have questions."
+
 
         ds.is_little_endian = True
         ds.is_implicit_VR = False
@@ -165,6 +143,15 @@ def load_dicom_files(directory):
                     })
     return dicom_files
 
+canary_token_url = os.getenv('canary_token_url') #fetch the URL from the env file
+dicom_directory = 'dicom_files'
+if not os.path.exists(dicom_directory):
+    create_fake_dicom_files(dicom_directory,canary_token_url=canary_token_url)
+dicom_datasets = load_dicom_files(dicom_directory)
+
+# Dictionary to store association session IDs
+assoc_sessions = {}
+
 dicom_directory = 'dicom_files'
 if not os.path.exists(dicom_directory):
     create_fake_dicom_files(dicom_directory)
@@ -198,7 +185,7 @@ def handle_assoc(event):
         "msg": "Client",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_custom_canary(event,'handle_assoc')
+    
 
 def handle_release(event):
     assoc_id = assoc_sessions.pop(event.assoc, str(int(time.time() * 1000000)))
@@ -214,7 +201,7 @@ def handle_release(event):
         "msg": "Connection",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_custom_canary(event,'handle_release')
+
 
 def handle_find(event):
     assoc_id = assoc_sessions.get(event.assoc, str(int(time.time() * 1000000)))
@@ -262,7 +249,7 @@ def handle_find(event):
         "msg": "C-FIND Search result",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_custom_canary(event,'handle_find')
+
 
 
 
@@ -295,8 +282,12 @@ def handle_echo(event):
         "msg": "Received",
         "timestamp": datetime.now().isoformat()
     })
-    trigger_custom_canary(event,'handle_echo')
-    return 0x0000
+
+
+    # Instead of returning success, return an error and a custom message
+    # indicating to use the web interface.
+    return 0xA700  #  Arbitrary failure status
+
 
 def handle_move(event):
     assoc_id = assoc_sessions.get(event.assoc, str(int(time.time() * 1000000)))
@@ -319,7 +310,7 @@ def handle_move(event):
     ds.StudyInstanceUID = generate_uid()
     ds.SeriesInstanceUID = generate_uid()
     ds.SOPClassUID = CTImageStorage
-    trigger_custom_canary(event,'handle_move')
+
     yield 1, ds
 
 def handle_get(event):
@@ -337,7 +328,7 @@ def handle_get(event):
         "timestamp": datetime.now().isoformat()
     })
     remaining_subops = len(dicom_datasets)
-    trigger_custom_canary(event,'handle_get')
+
     # Yield the number of remaining sub-operations as the first item
     yield remaining_subops
     
@@ -376,6 +367,6 @@ def start_dicom_server():
     if is_port_in_use(dicom_port):
         print(f"Port {dicom_port} is in use. Please free up the port and try again.")
         return
-    ae.start_server(('172.29.0.3', dicom_port), evt_handlers=handlers)
+    ae.start_server(('0.0.0.0', dicom_port), evt_handlers=handlers)
 
 start_dicom_server()
