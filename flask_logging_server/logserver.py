@@ -109,4 +109,4 @@ def handle_exception(e):
     exception_logger.error(f"Unhandled exception: {e}")
     return jsonify({"error": "Internal Server Error"}), 500
 
-app.run(host='localhost',debug=True,port=5000)
+app.run(host='172.29.0.2',debug=True,port=5000)

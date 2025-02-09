@@ -284,9 +284,8 @@ def handle_echo(event):
     })
 
 
-    # Instead of returning success, return an error and a custom message
-    # indicating to use the web interface.
-    return 0xA700  #  Arbitrary failure status
+
+    return 0x0000
 
 
 def handle_move(event):
@@ -367,6 +366,6 @@ def start_dicom_server():
     if is_port_in_use(dicom_port):
         print(f"Port {dicom_port} is in use. Please free up the port and try again.")
         return
-    ae.start_server(('0.0.0.0', dicom_port), evt_handlers=handlers)
+    ae.start_server(('172.29.0.3', dicom_port), evt_handlers=handlers)
 
 start_dicom_server()
